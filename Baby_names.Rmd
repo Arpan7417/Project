@@ -1,0 +1,340 @@
+---
+title: "MINI PROJECT BABYNAMES"
+
+author: 
+-       "Arpansurbhi"
+-        "Kevin"
+-        "Rishabh Vishwakarma"
+-        "Gaurav Hodade"
+
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+##  {.tabset}
+
+### Introduction 
+
+
+Introduction:
+
+
+This report seeks to scrutinize the statistics of baby names given from 1964 - 2018 in Ireland. The analysis will emphasize on various aspects of indicators such as most popular names for boys and girls throughout 55 years and their popularity trend. It includes the common names across both the genders and also
+try to estimate the difference in proportions of birth rate of boys and girls.
+
+
+The analysis and visualization are done using R and we have used below packages from R library.
+
+Packages used:
+
+1)	tidyverse
+
+2)	shiny
+
+3)	DT
+
+4)	ggplot2
+
+5)	dplyr
+
+
+
+```{r, echo=FALSE}
+rm(list = ls())
+suppressMessages(library(tidyverse))
+suppressMessages(library(shiny))
+suppressMessages(library(DT))
+suppressMessages(library("ggplot2"))
+suppressMessages(library("dplyr"))
+suppressMessages(library('kableExtra'))
+suppressMessages(library('forecast'))
+suppressMessages(library('plotly'))
+```
+
+
+
+### Data preparation and formatting
+```{r}
+combine_csv_files <- function(gender) {
+  years <- seq(1964,2018)
+  data <- list()
+  for(i in 1:length(years)) {
+    path <- paste(getwd(),'/', gender, "/Top ", gender, " Names ", years[i], ". Source CSO Ireland.csv", sep="")
+    current <- read_csv(path,col_types = list(col_character(),col_character(),col_integer()))
+    current$Year <- years[i]
+    current$Gender <- gender
+    data[[i]] <- current
+  }
+  return(bind_rows(data))
+}
+
+boys <- combine_csv_files("Boys")
+girls <- combine_csv_files("Girls")
+df <- rbind(boys, girls)
+
+df$Gender <- as.factor(df$Gender)
+df$Decade <- as.factor(df$Year %/% 10 * 10)
+# head(df)
+# head(boys)
+# head(girls)
+
+```
+### Report
+Unique names for boys and girls in Ireland from 1964-2018 :
+
+```{r , echo=FALSE}
+common_names <- inner_join(boys, girls, by="Name") %>%
+  distinct(Name)
+paste("There were",length(unique(boys$Name)),"unique names for Boys and",length(unique(girls$Name)),'unique names for girls from 1964-2018.')
+paste('There were',nrow(common_names), "names which were common accross both the genders during this timeframe.")
+```
+
+
+
+
+
+Top 10 popular names by count
+
+
+
+```{r , echo=FALSE} 
+
+Top_10_Popular_boy_names <- (boys %>% 
+                            group_by(Name,Gender) %>% 
+                            summarise(Total_kids = sum(`Number of Births`)) %>% 
+                            select(Name,Gender,Total_kids)  %>% 
+                            arrange(desc(Total_kids)))[1:10,] 
+
+
+Top_10_Popular_girl_names <- (girls %>% 
+                              group_by(Name,Gender) %>% 
+                              summarise(Total_kids =sum(`Number of Births`)) %>%       
+                              select(Name,Gender,Total_kids)  %>% 
+                              arrange(desc(Total_kids)))[1:10,]
+
+
+
+Top_10_Popular_boy_names %>% ggplot(aes(x=fct_reorder(Name,desc(Total_kids)), y=Total_kids)) + 
+  geom_bar(col="blue",fill="lightblue",stat = "identity") +
+  xlab("Top 10 boy names based on birth count") +
+  ylab("Number of Boys") +
+  ggtitle("Top 10 Boy names with highest birth count from 1964 to 2018") +
+  geom_text(aes(label=Total_kids),color = "blue",position = position_dodge(width = 1),vjust=2) 
+
+
+Top_10_Popular_girl_names %>% ggplot(aes(x=fct_reorder(Name,Total_kids), y=Total_kids)) + 
+  geom_bar(col="blue",fill="lightblue",stat = "identity") +
+  xlab("Top 10 girl names based on birth count") +
+  ylab("Number of Girls") +
+  ggtitle("Top 10 Girl names with highest birth count from 1964 to 2018") +
+  geom_text(aes(label=Total_kids),color = "blue",position = position_dodge(width = 1),vjust=2)
+
+
+```
+
+
+
+
+Most popular names by Ranking(Top 5)
+
+```{r , echo=FALSE}     
+Top5_Popular_boyname_yearwise <- boys %>% 
+                                group_by(Name,Year) %>% 
+                                filter(Rank %in% c(1,2,3,4,5)) %>% 
+                                distinct(Name,.keep_all = TRUE)
+
+Top5_Popular_boyname_yearwise %>% group_by(Name) %>% 
+  summarise(Popular_years=n()) %>% 
+  ggplot(aes(x=fct_reorder(Name,Popular_years), y=Popular_years)) + 
+  geom_bar(col="blue",fill="lightblue",stat = "identity") +
+  xlab("Most_popular_Boys_Name")+
+  ylab("Total Number of  popular years")+
+  ggtitle(" Popular names of Boys(Appeared in top 5 list in a year) from 1964 to 2018")+
+  geom_text(aes(label=paste(Popular_years ,"Yrs")),color = "blue",position = position_dodge(width = 1),vjust=2)
+
+
+
+Top5_Popular_girlname_yearwise <- girls %>% 
+                                group_by(Name,Year) %>% 
+                                filter(Rank %in% c(1,2,3,4,5)) %>% 
+                                distinct(Name,.keep_all = TRUE)
+
+Top5_Popular_girlname_yearwise %>%
+  group_by(Name) %>% 
+  summarise(Popular_years=n()) %>% 
+  ggplot(aes(x=fct_reorder(Name,Popular_years), y=Popular_years)) + 
+  geom_bar(col="blue",fill="lightblue",stat = "identity") +
+  xlab("Most_popular_Boys_Name")+
+  ylab("Total Number of  popular years")+
+  ggtitle("Popular names of Girls(Appeared in top 5 list in a year) from 1964 to 2018")+
+  geom_text(aes(label=paste(Popular_years ,"Years")),color = "blue",position = position_dodge(width = 1),hjust=0,vjust=0) +coord_flip() 
+
+
+```
+
+
+Most popular name with number of years(Number 1 in a year)
+
+```{r , echo=FALSE} 
+
+top_girls <- girls %>% 
+                filter(Rank==1) 
+girls_trend <- filter(girls, Name %in% distinct(top_girls)$Name)
+ 
+
+top_girls %>% group_by(Name) %>% 
+  summarise(Popular_years=n()) %>% 
+  ggplot(aes(x=fct_reorder(Name,Popular_years), y=Popular_years)) + 
+  geom_bar(col="blue",fill="lightblue",stat = "identity") +
+  xlab("Most popular Girls Name") +
+  ylab("Total Number of popular years")+
+  ggtitle("Popular names of Girls (Appeared as a top most in a year) from 1964 to 2018")+
+  geom_text(aes(label=paste(Popular_years ,"Years")),color = "blue",position = position_dodge(width = 1),vjust=2)
+
+
+top_boys <- boys %>% 
+                filter(Rank==1)  
+boys_trend <- filter(boys, Name %in% top_boys$Name)
+
+top_boys %>% group_by(Name) %>% 
+  summarise(Popular_years=n()) %>% 
+  ggplot(aes(x=fct_reorder(Name,Popular_years), y=Popular_years)) + 
+  geom_bar(col="blue",fill="lightblue",stat = "identity") +
+  xlab("Most Popular Boy Names") +
+  ylab("Total Number of popular years") +
+  ggtitle("Popular names of Boys(Appeared as a top most in a year) from 1964 to 2018") +
+  geom_text(aes(label=paste(Popular_years ,"Years")),color = "blue",position = position_dodge(width = 1),vjust=2)
+```
+```{r , echo=FALSE}   
+ggplotly(
+  boys_trend  %>%
+  ggplot(aes(x=Year, y=`Number of Births`,color=Name)) +
+  geom_line(size=1) +
+  ggtitle("Trend for top names") +
+  scale_color_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))
+  )
+
+ggplotly(
+  girls_trend  %>%
+  ggplot(aes(x=Year, y=`Number of Births`,color=Name)) +
+    geom_line(size=1) +
+    ggtitle("Trend for Girls names") +
+    scale_color_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))
+  )
+```
+
+
+Births, group by gender and decade   
+
+```{r , echo=FALSE} 
+   df %>%
+  group_by(Gender, Decade) %>%
+  summarise(NumGender=n()) -> births.per.decade
+
+# plot porportion of births vs decades
+ggplotly(
+  ggplot(aes(x=Decade, y=NumGender, fill=Gender), data=births.per.decade) +
+  geom_bar(stat="identity", position="fill") + 
+  labs(title="Proportion of Girl/Boy Births per Decade",
+       x="Decade",
+       y="Proportion of Births")
+)
+```
+
+```{r , echo=FALSE}
+common_names <- inner_join(boys, girls, by="Name") %>%
+              distinct(Name)
+
+
+knitr::kable(common_names, "html",caption = 'Common Names') %>%
+    kable_styling( position = "center", font_size = 17, bootstrap_options = "hover") %>%
+    scroll_box(height = "200px", width='100%')
+
+```
+
+```{r , echo=FALSE}     
+#--Plot of Year wise total number of births (boys+girls)
+
+# Total_Births <- df %>% group_by(Year) %>%
+#      summarise(Num_Of_Total_Births=sum(`Number of Births`)) %>% add_column(Gender="Total", .before="Year")
+
+Year_wise_births <- df %>% group_by(Gender,Year) %>%
+   summarise(Num_Of_Births=sum(`Number of Births`, na.rm=T))
+
+ggplotly(
+  ggplot(data=Year_wise_births) + 
+  geom_line(aes(x=Year, y=Num_Of_Births,color=Gender),size=1) +
+  ylab("Number of Births")
+)
+
+ggplotly(
+  df %>% group_by(Year) %>%
+  summarise(Num_Of_Total_Births=sum(`Number of Births`, na.rm=T)) %>%
+  ggplot(aes(x=Year, y=Num_Of_Total_Births)) + 
+  geom_line(size=1) +
+  ylab("Number of Births") +
+  ggtitle("Total Births Each Year")
+)
+
+#Collecting count in table
+
+
+
+#Spreading the data
+Year_wise_births<- pivot_wider(Year_wise_births, names_from=Gender, values_from=Num_Of_Births)
+
+# Adding total births column
+Year_wise_births$Total_birth <- Year_wise_births$Boys + Year_wise_births$Girls
+
+
+
+
+Year_boy <- Year_wise_births$Year[Year_wise_births$Boys==max(Year_wise_births$Boys)]
+paste("The year with highest birth count for boys was :",Year_boy)
+
+Year_girls <- Year_wise_births$Year[Year_wise_births$Girls ==max(Year_wise_births$Girls)]
+paste("The year with highest birth count for girls was :",Year_girls)
+
+Year_total <- Year_wise_births$Year[Year_wise_births$Total_birth ==max(Year_wise_births$Total_birth)]
+paste("The year with highest total birth count was :",Year_total)      
+```
+
+
+```{r , echo=FALSE}
+#install.packages('plotly')
+#library('plotly')
+
+
+ plot_ly(rbind(Top5_Popular_boyname_yearwise, Top5_Popular_girlname_yearwise), y = ~Year, x = ~`Number of Births`, z = ~Name, color = ~Gender, colors = c('#BF382A', '#0C4B8E')) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'Year'),
+                     yaxis = list(title = 'Number of Births'),
+                     zaxis = list(title = 'Name')))
+
+
+```
+
+```{r, echo=FALSE}
+year_wise <- df %>% group_by(Year) %>%
+  summarise(Total_Births=sum(`Number of Births`))
+
+
+births <- ts(year_wise$Total_Births,start=(1964), end=(2018),frequency=1)
+
+plot(diff(births))
+abline(lm(diff(births))~time(births))
+acf(diff(births))
+pacf(diff(births))
+fit <- arima(births, c(5, 1, 4),seasonal = list(order = c(0, 1,0), period = 1))
+pred <- forecast(fit)
+(autoplot(pred))
+```
+
+
+```{r, echo=FALSE}
+```
